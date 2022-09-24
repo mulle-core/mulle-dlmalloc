@@ -520,6 +520,9 @@ MAX_RELEASE_CHECK_RATE   default: 4095 unless not HAVE_MMAP
   disable, set to MAX_SIZE_T. This may lead to a very slight speed
   improvement at the expense of carrying around more memory.
 */
+#ifndef MULLE_DLMALLOC_VERSION
+#define MULLE_DLMALLOC_VERSION  ((0 << 24) | (0 << 8) | 1)
+#endif
 
 /* Version identifier to allow people to support multiple versions */
 #ifndef DLMALLOC_VERSION
@@ -1269,6 +1272,13 @@ size_t dlmalloc_usable_size(void*);
 */
 typedef void* mspace;
 
+enum MSPACE_MODE_BIT
+{
+   MSPACE_MODE_DEFAULT = 0,
+   MSPACE_MODE_NEWLOCK = 0x01,   // used to be "locked" argument
+   MSPACE_MODE_STATIC  = 0x02   // do not grow after initial sbrk/mmap
+};
+
 /*
   create_mspace creates and returns a new independent space with the
   given initial capacity, or, if 0, the default granularity size.  It
@@ -1280,7 +1290,7 @@ typedef void* mspace;
   compiling with a different DEFAULT_GRANULARITY or dynamically
   setting with mallopt(M_GRANULARITY, value).
 */
-DLMALLOC_EXPORT mspace create_mspace(size_t capacity, int locked);
+DLMALLOC_EXPORT mspace create_mspace(size_t capacity, int mode);
 
 /*
   destroy_mspace destroys the given space, and attempts to return all
@@ -1299,7 +1309,7 @@ DLMALLOC_EXPORT size_t destroy_mspace(mspace msp);
   Destroying this space will deallocate all additionally allocated
   space (if possible) but not the initial base.
 */
-DLMALLOC_EXPORT mspace create_mspace_with_base(void* base, size_t capacity, int locked);
+DLMALLOC_EXPORT mspace create_mspace_with_base(void* base, size_t capacity, int mode);
 
 /*
   mspace_track_large_chunks controls whether requests for large chunks
@@ -1643,7 +1653,7 @@ unsigned char _BitScanReverse(unsigned long *index, unsigned long mask);
 #endif /* MAP_ANON */
 #ifdef MAP_ANONYMOUS
 #define MMAP_FLAGS           (MAP_PRIVATE|MAP_ANONYMOUS)
-#define MMAP_DEFAULT(s)       mmap(0, (s), MMAP_PROT, MMAP_FLAGS, -1, 0)
+#define MMAP_DEFAULT(s)      mmap(0, (s), MMAP_PROT, MMAP_FLAGS, -1, 0)
 #else /* MAP_ANONYMOUS */
 /*
    Nearly all versions of mmap support MAP_ANONYMOUS, so the following
@@ -1657,7 +1667,7 @@ static int dev_zero_fd = -1; /* Cached file descriptor for /dev/zero. */
             mmap(0, (s), MMAP_PROT, MMAP_FLAGS, dev_zero_fd, 0))
 #endif /* MAP_ANONYMOUS */
 
-#define DIRECT_MMAP_DEFAULT(s) MMAP_DEFAULT(s)
+#define DIRECT_MMAP_DEFAULT(s) MMAP_DEFAULT( (s))
 
 #else /* WIN32 */
 
@@ -1692,9 +1702,9 @@ static FORCEINLINE int win32munmap(void* ptr, size_t size) {
   return 0;
 }
 
-#define MMAP_DEFAULT(s)             win32mmap(s)
-#define MUNMAP_DEFAULT(a, s)        win32munmap((a), (s))
-#define DIRECT_MMAP_DEFAULT(s)      win32direct_mmap(s)
+#define MMAP_DEFAULT(s)          win32mmap((s)
+#define MUNMAP_DEFAULT(a, s)     win32munmap((a), (s))
+#define DIRECT_MMAP_DEFAULT(s)   win32direct_mmap(s)
 #endif /* WIN32 */
 #endif /* HAVE_MMAP */
 
@@ -1724,9 +1734,9 @@ static FORCEINLINE int win32munmap(void* ptr, size_t size) {
     #define USE_MMAP_BIT            (SIZE_T_ONE)
 
     #ifdef MMAP
-        #define CALL_MMAP(s)        MMAP(s)
+        #define CALL_MMAP(s)        MMAP( (s))
     #else /* MMAP */
-        #define CALL_MMAP(s)        MMAP_DEFAULT(s)
+        #define CALL_MMAP(s)        MMAP_DEFAULT( (s))
     #endif /* MMAP */
     #ifdef MUNMAP
         #define CALL_MUNMAP(a, s)   MUNMAP((a), (s))
@@ -1734,9 +1744,9 @@ static FORCEINLINE int win32munmap(void* ptr, size_t size) {
         #define CALL_MUNMAP(a, s)   MUNMAP_DEFAULT((a), (s))
     #endif /* MUNMAP */
     #ifdef DIRECT_MMAP
-        #define CALL_DIRECT_MMAP(s) DIRECT_MMAP(s)
+        #define CALL_DIRECT_MMAP(s) DIRECT_MMAP( (s))
     #else /* DIRECT_MMAP */
-        #define CALL_DIRECT_MMAP(s) DIRECT_MMAP_DEFAULT(s)
+        #define CALL_DIRECT_MMAP(s) DIRECT_MMAP_DEFAULT( (s))
     #endif /* DIRECT_MMAP */
 #else  /* HAVE_MMAP */
     #define USE_MMAP_BIT            (SIZE_T_ZERO)
@@ -2591,6 +2601,7 @@ struct malloc_state {
   size_t     max_footprint;
   size_t     footprint_limit; /* zero means no limit */
   flag_t     mflags;
+  int        is_static;
 #if USE_LOCKS
   MLOCK_T    mutex;     /* locate lock among fields that rarely change */
 #endif /* USE_LOCKS */
@@ -3825,6 +3836,10 @@ static void* mmap_alloc(mstate m, size_t nb) {
     if (fp <= m->footprint || fp > m->footprint_limit)
       return 0;
   }
+
+  /* in static memory configuration we only alloc once */
+  assert( !m->is_static);
+
   if (mmsize > nb) {     /* Check for wrap around 0 */
     char* mm = (char*)(CALL_DIRECT_MMAP(mmsize));
     if (mm != CMFAIL) {
@@ -4034,6 +4049,9 @@ static void* sys_alloc(mstate m, size_t nb) {
   size_t tsize = 0;
   flag_t mmap_flag = 0;
   size_t asize; /* allocation size */
+
+  if( m->is_static)
+   return 0;
 
   ensure_initialization();
 
@@ -5414,9 +5432,10 @@ static mstate init_user_mstate(char* tbase, size_t tsize) {
   return m;
 }
 
-mspace create_mspace(size_t capacity, int locked) {
+mspace create_mspace(size_t capacity, int mode) {
   mstate m = 0;
   size_t msize;
+
   ensure_initialization();
   msize = pad_request(sizeof(struct malloc_state));
   if (capacity < (size_t) -(msize + TOP_FOOT_SIZE + mparams.page_size)) {
@@ -5427,13 +5446,15 @@ mspace create_mspace(size_t capacity, int locked) {
     if (tbase != CMFAIL) {
       m = init_user_mstate(tbase, tsize);
       m->seg.sflags = USE_MMAP_BIT;
-      set_lock(m, locked);
+      m->is_static  = mode & MSPACE_MODE_STATIC;
+      set_lock(m, mode & MSPACE_MODE_NEWLOCK);
     }
   }
   return (mspace)m;
 }
 
-mspace create_mspace_with_base(void* base, size_t capacity, int locked) {
+
+mspace create_mspace_with_base(void* base, size_t capacity, int mode) {
   mstate m = 0;
   size_t msize;
   ensure_initialization();
@@ -5442,7 +5463,8 @@ mspace create_mspace_with_base(void* base, size_t capacity, int locked) {
       capacity < (size_t) -(msize + TOP_FOOT_SIZE + mparams.page_size)) {
     m = init_user_mstate((char*)base, capacity);
     m->seg.sflags = EXTERN_BIT;
-    set_lock(m, locked);
+    m->is_static  = mode & MSPACE_MODE_STATIC;
+    set_lock(m, mode & MSPACE_MODE_NEWLOCK);
   }
   return (mspace)m;
 }
