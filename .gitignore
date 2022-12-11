@@ -69,3 +69,4 @@ iOSInjectionProject/
 *.sublime-workspace
 kitchen/
 .mulle/share/env/version.old
+.ackrc
