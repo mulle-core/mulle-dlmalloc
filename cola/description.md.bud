@@ -1,0 +1,10 @@
+
+# mulle-dlmalloc
+
+Doug Lea's malloc.c extended for shared memory use.
+
+**mulle-dlmalloc** assumes you compile it with `-DMSPACE_ONLY`.
+
+mulle-dlmalloc is used by the [mulle-mmapallocator](//github.com/mulle-core/mulle-mmapallocator) to manage shared memory and seperate memory arenas.
+
+

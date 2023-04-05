@@ -1,0 +1,11 @@
+{
+   "name" : "mulle-dlmalloc",
+   "version" : "0.0.1",
+   "description" : "Doug Lea's malloc.c extended for shared memory use.",
+   "keywords" : [],
+   "license" : "UNLICENSED",
+   "repo" : "mulle-core/mulle-dlmalloc",
+   "src" : [
+      "src/dlmalloc.c"
+   ]
+}
