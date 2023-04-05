@@ -70,3 +70,6 @@ iOSInjectionProject/
 kitchen/
 .mulle/share/env/version.old
 .ackrc
+wilted/
+mulle-template-composer-*
+mulle-markdown-preview-*.html
