@@ -1,0 +1,12 @@
+{
+   project =
+   {
+      description="Doug Lea's malloc.c extended for shared memory use.";
+      domain="github";
+      name="mulle-dlmalloc";
+      user="mulle-core";
+      repo="mulle-dlmalloc";
+      homepage="https://github.com/mulle-core/mulle-dlmalloc";
+      license="UNLICENSED"
+   };
+}
