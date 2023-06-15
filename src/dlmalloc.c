@@ -520,8 +520,8 @@ MAX_RELEASE_CHECK_RATE   default: 4095 unless not HAVE_MMAP
   disable, set to MAX_SIZE_T. This may lead to a very slight speed
   improvement at the expense of carrying around more memory.
 */
-#ifndef MULLE_DLMALLOC_VERSION
-#define MULLE_DLMALLOC_VERSION  ((0 << 20) | (0 << 8) | 2)
+#ifndef MULLE__DLMALLOC_VERSION
+#define MULLE__DLMALLOC_VERSION  ((0 << 20) | (0 << 8) | 2)
 #endif
 
 /* Version identifier to allow people to support multiple versions */

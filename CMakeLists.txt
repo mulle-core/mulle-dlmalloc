@@ -51,6 +51,10 @@ target_compile_definitions( "${LIBRARY_COMPILE_TARGET}" PUBLIC
 )
 
 target_compile_options( "${LIBRARY_COMPILE_TARGET}" PUBLIC)
+if( NOT MSVC)
+   target_compile_options( "${LIBRARY_COMPILE_TARGET}" PUBLIC -Wunused)
+endif()
+
 # use LIBRARY_LINK_TARGET for linker options
 target_link_options( "${LIBRARY_LINK_TARGET}" PUBLIC)
 
