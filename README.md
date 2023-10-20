@@ -63,6 +63,8 @@ mulle-sde install --prefix /usr/local \
 ### Manual Installation
 
 
+Download the latest [tar](https://github.com/mulle-core/mulle-dlmalloc/archive/refs/tags/latest.tar.gz) or [zip](https://github.com/mulle-core/mulle-dlmalloc/archive/refs/tags/latest.zip) archive and unpack it.
+
 Install **mulle-dlmalloc** into `/usr/local` with [cmake](https://cmake.org):
 
 ``` sh
