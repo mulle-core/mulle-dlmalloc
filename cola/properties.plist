@@ -7,6 +7,6 @@
       user="mulle-core";
       repo="mulle-dlmalloc";
       homepage="https://github.com/mulle-core/mulle-dlmalloc";
-      license="UNLICENSED"
+      license="BSD-3-Clause"
    };
 }
