@@ -521,7 +521,7 @@ MAX_RELEASE_CHECK_RATE   default: 4095 unless not HAVE_MMAP
   improvement at the expense of carrying around more memory.
 */
 #ifndef MULLE__DLMALLOC_VERSION
-#define MULLE__DLMALLOC_VERSION  ((0UL << 20) | (0 << 8) | 3)
+#define MULLE__DLMALLOC_VERSION  ((0UL << 20) | (0 << 8) | 4)
 #endif
 
 /* Version identifier to allow people to support multiple versions */
