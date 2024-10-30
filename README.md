@@ -60,8 +60,6 @@ Add `-isystem src/mulle-core` to your `CFLAGS` and compile all the sources that 
 
 ## Install
 
-### Install with mulle-sde
-
 Use [mulle-sde](//github.com/mulle-sde) to build and install mulle-dlmalloc:
 
 ``` sh
@@ -69,7 +67,7 @@ mulle-sde install --prefix /usr/local \
    https://github.com/mulle-core/mulle-dlmalloc/archive/latest.tar.gz
 ```
 
-### Manual Installation
+### Legacy Installation
 
 
 Download the latest [tar](https://github.com/mulle-core/mulle-dlmalloc/archive/refs/tags/latest.tar.gz) or [zip](https://github.com/mulle-core/mulle-dlmalloc/archive/refs/tags/latest.zip) archive and unpack it.
