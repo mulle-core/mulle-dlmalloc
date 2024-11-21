@@ -17,7 +17,7 @@ mulle-dlmalloc is used by the [mulle-mmapallocator](//github.com/mulle-core/mull
 
 | Release Version                                       | Release Notes
 |-------------------------------------------------------|--------------
-| ![Mulle kybernetiK tag](https://img.shields.io/github/tag/mulle-core/mulle-dlmalloc.svg?branch=release) [![Build Status](https://github.com/mulle-core/mulle-dlmalloc/workflows/CI/badge.svg?branch=release)](//github.com/mulle-core/mulle-dlmalloc/actions) | [RELEASENOTES](RELEASENOTES.md) |
+| ![Mulle kybernetiK tag](https://img.shields.io/github/tag/mulle-core/mulle-dlmalloc.svg) [![Build Status](https://github.com/mulle-core/mulle-dlmalloc/workflows/CI/badge.svg)](//github.com/mulle-core/mulle-dlmalloc/actions) | [RELEASENOTES](RELEASENOTES.md) |
 
 
 
