@@ -1,3 +1,7 @@
+### 0.0.5
+
+Various small improvements
+
 ### 0.0.4
 
  add some missing files
