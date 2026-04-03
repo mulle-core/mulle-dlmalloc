@@ -1,4 +1,5 @@
 # mulle-dlmalloc Library Documentation for AI
+<!-- Keywords: malloc, mspace -->
 
 ## 1. Introduction & Purpose
 
