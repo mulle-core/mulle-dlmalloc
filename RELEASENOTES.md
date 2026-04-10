@@ -1,8 +1,11 @@
-### 0.0.6
+## 0.1.0
 
 
 
 
-* complete API reference with all mspace functions
-* integration examples showing common usage patterns
-* clear documentation of gotchas and limitations
+
+
+
+
+* fix `MMAP_DEFAULT` macro parenthesis to prevent macro expansion errors on Windows builds
+* remove accidental static qualifiers from FORCEINLINE platform helpers (win32mmap, `win32direct_mmap,` win32munmap, x86 lock helpers, recursive lock functions) — **BREAKING**: changes internal linkage and may expose new symbols to linkers

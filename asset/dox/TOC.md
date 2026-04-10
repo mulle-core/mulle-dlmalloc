@@ -1,241 +1,115 @@
 # mulle-dlmalloc Library Documentation for AI
-<!-- Keywords: malloc, mspace, allocator, dlmalloc, sharedmemory -->
+<!-- Keywords: memory, allocator, dlmalloc, mspace, shared-memory -->
 
 ## 1. Introduction & Purpose
 
-mulle-dlmalloc is an adaptation of Doug Lea's malloc.c specifically configured with `-DMSPACE_ONLY` for creating independent memory allocation spaces (mspace). It serves as the underlying allocator for mulle-mmapallocator, enabling efficient sub-heap allocation within fixed memory regions, shared memory contexts, and isolated allocation arenas. This version removes global heap management in favor of mspace-based allocation.
+- Single-file implementation of Doug Lea's dlmalloc adapted for shared-memory and mspace usage.
+- Solves general-purpose dynamic allocation with options for multiple independent allocation spaces (mspaces), mmap support, and tunable behavior via compile-time flags and mallopt.
+- Key features: standard malloc/free/realloc/calloc, memalign/posix_memalign, pvalloc/valloc, mallinfo/mallopt, malloc_trim and a full mspace API (create_mspace, mspace_malloc, mspace_free, etc.).
+- Relationship: component intended to be compiled into projects (no public headers shipped here); used by mulle-mmapallocator for shared-memory arenas.
 
 ## 2. Key Concepts & Design Philosophy
 
-- **mspace API**: Provides multi-space malloc interface instead of global heap
-- **Independent Arenas**: Create isolated allocation spaces with separate metadata
-- **Shared Memory Compatible**: Designed to work within pre-allocated regions (e.g., mmap'd files)
-- **Doug Lea's Algorithm**: Battle-tested malloc implementation with good fragmentation characteristics
-- **No Global State**: DMSPACE_ONLY disables global heap; all operations on explicit mspace
-- **Configurable Sizes**: Can tune chunk sizes and behavior for specific use cases
+- Monolithic, macro-heavy C implementation optimized for speed and space trade-offs.
+- MSPACES: independent allocator instances to isolate allocations (useful for shared arenas or per-thread allocators).
+- Uses MORECORE (sbrk) and/or MMAP for system memory management; behavior tunable via compile-time defines (ONLY_MSPACES, MSPACES, USE_LOCKS, FOOTERS, etc.).
+- Designed for robustness: checks detect many misuse cases; optional FOOTERS and PROCEED_ON_ERROR change safety/performance trade-offs.
 
 ## 3. Core API & Data Structures
 
-### mspace Functions (Primary API)
+This project exposes its API from src/dlmalloc.c. There are no packaged public header files in this repo; for explicit prototypes see the historic malloc-2.8.6.h or extract the prototypes from dlmalloc.c.
 
-#### Mspace Creation & Destruction
+### 3.1. Global allocator (drop-in names / dl-prefixed aliases)
+- malloc(size_t) / dlmalloc: allocate memory
+- free(void*) / dlfree: free memory
+- realloc(void*, size_t) / dlrealloc: resize allocation
+- calloc(size_t, size_t) / dlcalloc: allocate and zero
+- memalign(size_t, size_t) / dlmemalign: aligned allocation
+- posix_memalign(void**, size_t, size_t) / dlposix_memalign: POSIX aligned allocation
+- valloc(size_t) / dlvalloc; pvalloc(size_t) / dlpvalloc: page-aligned helpers
+- malloc_trim(size_t) / dlmalloc_trim: return free top space to OS
+- malloc_usable_size(void*) / dlmalloc_usable_size: usable bytes of allocation
+- malloc_stats() / dlmalloc_stats and mallinfo() / dlmallinfo: allocator stats
+- mallopt(int,int) / dlmallopt: tune runtime parameters
+- malloc_set_footprint_limit(size_t) / dlmalloc_set_footprint_limit: cap footprint
 
-- `create_mspace(capacity, locked)` → `mspace`: Creates new allocation space with given capacity; second arg controls internal locking (often 0).
-- `destroy_mspace(mspace)` → `int`: Destroys mspace; returns 0 on success
-- `mspace_footprint(mspace)` → `size_t`: Returns current size allocated to mspace
-- `mspace_max_footprint(mspace)` → `size_t`: Returns maximum size ever allocated
-
-#### Memory Allocation from Mspace
-
-- `mspace_malloc(mspace, size)` → `void *`: Allocates memory from specific mspace
-- `mspace_free(mspace, ptr)` → `void`: Frees memory to specific mspace
-- `mspace_realloc(mspace, ptr, size)` → `void *`: Resizes allocation within same mspace
-- `mspace_calloc(mspace, count, size)` → `void *`: Allocates and zeroes memory
-
-#### Memory Inspection
-
-- `mspace_usable_size(ptr)` → `size_t`: Returns usable size of allocated block
-- `mspace_stats_t` struct: Contains allocation statistics
-
-#### Advanced Operations
-
-- `mspace_trim(mspace, pad)` → `int`: Attempts to shrink mspace; returns 0 if trimmed
-- `mspace_malloc_stats(mspace)` → `void`: Prints allocation statistics
-- `mspace_is_heap_object(mspace, ptr)` → `int`: Checks if pointer belongs to mspace
+### 3.2. Mspace API (per-arena)
+- create_mspace(size_t capacity, int mode): create an mspace
+- create_mspace_with_base(void* base, size_t capacity, int mode): use provided base memory
+- mspace_malloc(mspace, size_t), mspace_free(mspace, void*), mspace_realloc(mspace, void*, size_t), mspace_calloc(mspace, n, size)
+- mspace_memalign(mspace, alignment, bytes), mspace_independent_calloc/comalloc, mspace_bulk_free
+- mspace_trim(mspace, size_t pad), mspace_malloc_stats(mspace), mspace_mallinfo(mspace)
+- mspace_footprint / mspace_max_footprint / mspace_set_footprint_limit
 
 ## 4. Performance Characteristics
 
-- **Allocation**: O(1) amortized; O(log n) in pathological cases
-- **Fragmentation**: Good fragmentation characteristics; typically 5-10% overhead
-- **Memory Overhead**: Small per-mspace metadata; per-allocation overhead ~16-32 bytes
-- **Deallocation**: O(1) amortized; may coalesce adjacent free blocks
-- **Thread-Safety**: NOT thread-safe; requires external synchronization if used from multiple threads
-- **Scale**: Designed for allocations from tens of bytes to gigabytes
+- Complexity: allocation/free are constant-time bounded by a factor of size_t bits (practical O(1)); mallinfo/malloc_stats may traverse heaps and cost O(n).
+- Small-object fast path via bins (low fragmentation); large requests use mmap (threshold tunable).
+- Memory overhead: per-chunk header (4/8 bytes plus alignment), per-mspace metadata; FOOTERS/DEBUG add overhead.
+- Threading: Not thread-safe by default. Enable USE_LOCKS or use separate mspaces per thread for concurrency.
 
 ## 5. AI Usage Recommendations & Patterns
 
-### Best Practices
+Best practices:
+- Use mspaces for isolated or shared-memory arenas (create_mspace + mspace_malloc/mspace_free).
+- Compile with ONLY_MSPACES if you only want explicit mspace API (no global malloc overrides).
+- Tune large-object behavior with mallopt(M_MMAP_THRESHOLD) and trimming with M_TRIM_THRESHOLD.
+- Always pair frees with the same mspace used for allocation; do not mix mspaces unless FOOTERS is enabled and understood.
 
-- **Create Once**: Create mspace once during initialization; don't recreate frequently
-- **Fixed Capacity**: Capacity fixed at creation time; plan size requirements in advance
-- **Check Return Values**: mspace_malloc returns NULL on allocation failure (unlike global malloc)
-- **Paired Free**: Always use mspace_free with same mspace as allocated from
-- **No Globals**: Different mspaces are completely independent; don't mix pointers
-- **Inspect Stats**: Use mspace_malloc_stats() during debugging to understand allocation patterns
+Common pitfalls:
+- Relying on global dlmalloc in threaded apps without USE_LOCKS causes races.
+- Passing non-power-of-two alignments to memalign/posix_memalign.
 
-### Common Pitfalls
-
-- **Capacity Exhaustion**: Will return NULL when mspace full; no automatic growth
-- **Cross-mspace Free**: Freeing ptr from wrong mspace causes corruption; track allocator source
-- **Thread Safety**: Not thread-safe; use locks or thread-local mspaces if concurrent access needed
-- **Memory Leaks**: Unreleased mspace persists; manually track and free or use cleanup functions
-- **Pointer Validity**: Pointers only valid within allocated block range; extent checking disabled
-
-### Idiomatic Usage
-
-```c
-// Pattern 1: Simple mspace usage
-mspace ms = create_mspace(10*1024*1024);
-void *p = mspace_malloc(ms, 1000);
-mspace_free(ms, p);
-destroy_mspace(ms);
-
-// Pattern 2: Arena for temporary allocations
-mspace temp_arena = create_mspace(1024*1024);
-// ... allocate and use
-destroy_mspace(temp_arena);  // Free everything at once
-
-// Pattern 3: Separate mspace per subsystem
-mspace graphics_heap = create_mspace(50*1024*1024);
-mspace network_heap = create_mspace(10*1024*1024);
-```
+Idiomatic pattern: thread-local mspace (static __thread mspace ms = 0; if (!ms) ms = create_mspace(0,0); use mspace_malloc/mspace_free).
 
 ## 6. Integration Examples
 
-### Example 1: Basic Mspace Usage
+### Example 1: Creating and populating an mspace
 
 ```c
-#include <mulle-dlmalloc/mulle-dlmalloc.h>
-#include <stdio.h>
-#include <string.h>
-
-int main() {
-    mspace ms = create_mspace(1024*1024);
-    if (!ms) {
-        fprintf(stderr, "Failed to create mspace\n");
-        return 1;
-    }
-    
-    char *buf = (char *)mspace_malloc(ms, 256);
-    strcpy(buf, "Hello from mspace");
-    printf("%s\n", buf);
-    
-    mspace_free(ms, buf);
-    destroy_mspace(ms);
-    return 0;
-}
-```
-
-### Example 2: Multiple Mspaces
-
-```c
-#include <mulle-dlmalloc/mulle-dlmalloc.h>
-
-int main() {
-    mspace alloc1 = create_mspace(1024*1024);
-    mspace alloc2 = create_mspace(2*1024*1024);
-    
-    int *p1 = (int *)mspace_malloc(alloc1, sizeof(int) * 100);
-    double *p2 = (double *)mspace_malloc(alloc2, sizeof(double) * 50);
-    
-    p1[0] = 42;
-    p2[0] = 3.14159;
-    
-    mspace_free(alloc1, p1);
-    mspace_free(alloc2, p2);
-    
-    destroy_mspace(alloc1);
-    destroy_mspace(alloc2);
-    return 0;
-}
-```
-
-### Example 3: Checking Allocation Size
-
-```c
-#include <mulle-dlmalloc/mulle-dlmalloc.h>
 #include <stdio.h>
 
-int main() {
-    mspace ms = create_mspace(512*1024);
-    
-    void *p = mspace_malloc(ms, 100);
-    size_t usable = mspace_usable_size(p);
-    
-    printf("Requested: 100, Usable: %zu\n", usable);
-    
-    mspace_free(ms, p);
-    destroy_mspace(ms);
-    return 0;
+int main()
+{
+   mspace ms;
+   void* p;
+
+   ms = create_mspace(0, 0);
+   p  = mspace_malloc(ms, 256);
+   if (p == NULL) return(1);
+   /* use p */
+   mspace_free(ms, p);
+   return(0);
 }
 ```
 
-### Example 4: Realloc in Mspace
+### Example 2: Using a custom allocator alias
 
 ```c
-#include <mulle-dlmalloc/mulle-dlmalloc.h>
-#include <string.h>
+/* compile-time: -DONLY_MSPACES */
+static mspace mymspace = NULL;
 
-int main() {
-    mspace ms = create_mspace(1024*1024);
-    
-    int *arr = (int *)mspace_malloc(ms, 10 * sizeof(int));
-    for (int i = 0; i < 10; i++)
-        arr[i] = i;
-    
-    // Resize to 20 elements
-    arr = (int *)mspace_realloc(ms, arr, 20 * sizeof(int));
-    for (int i = 10; i < 20; i++)
-        arr[i] = i;
-    
-    mspace_free(ms, arr);
-    destroy_mspace(ms);
-    return 0;
+void* mymalloc(size_t bytes)
+{
+   if (mymspace == NULL) mymspace = create_mspace(0,0);
+   return mspace_malloc(mymspace, bytes);
 }
-```
 
-### Example 5: Calloc (Zeroed Allocation)
-
-```c
-#include <mulle-dlmalloc/mulle-dlmalloc.h>
-#include <stdio.h>
-
-int main() {
-    mspace ms = create_mspace(1024*1024);
-    
-    // Allocate and zero 100 integers
-    int *arr = (int *)mspace_calloc(ms, 100, sizeof(int));
-    
-    // All elements are 0
-    for (int i = 0; i < 100; i++) {
-        if (arr[i] != 0) {
-            printf("ERROR: Element %d not zeroed\n", i);
-            break;
-        }
-    }
-    
-    mspace_free(ms, arr);
-    destroy_mspace(ms);
-    return 0;
-}
-```
-
-### Example 6: Trim Unused Memory
-
-```c
-#include <mulle-dlmalloc/mulle-dlmalloc.h>
-
-int main() {
-    mspace ms = create_mspace(10*1024*1024);
-    
-    void *p = mspace_malloc(ms, 1024*1024);
-    mspace_free(ms, p);
-    
-    // Mspace still has capacity reserved
-    size_t before = mspace_footprint(ms);
-    
-    // Try to trim unused pages
-    if (mspace_trim(ms, 0) > 0) {
-        size_t after = mspace_footprint(ms);
-        printf("Trimmed from %zu to %zu\n", before, after);
-    }
-    
-    destroy_mspace(ms);
-    return 0;
+void myfree(void* p)
+{
+   mspace_free(mymspace, p);
 }
 ```
 
 ## 7. Dependencies
 
-- libc (standard C library)
-- (mulle-dlmalloc is typically used by mulle-mmapallocator, not directly)
+- No direct mulle-sde library dependencies (clib.json lists only src/dlmalloc.c).
+- Commonly used by: mulle-mmapallocator for shared-memory arena management.
+
+## 8. Shortcut / Notes for AI
+
+- Primary authoritative source: src/dlmalloc.c (exported symbols listed above). There are dl-prefixed aliases for many functions (dlmalloc/dlfree/etc.).
+- Use mspace API for explicit control; tune behavior with mallopt and compile-time flags (ONLY_MSPACES, MSPACES, USE_LOCKS, FOOTERS).
+- When generating code, prefer mspace-based allocation for shared or isolated heaps; avoid global dlmalloc in concurrent contexts unless locking is enabled.
+
+-- End of TOC.md
