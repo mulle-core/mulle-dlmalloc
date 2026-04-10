@@ -1,5 +1,5 @@
 # mulle-dlmalloc Library Documentation for AI
-<!-- Keywords: malloc, mspace -->
+<!-- Keywords: malloc, mspace, allocator, dlmalloc, sharedmemory -->
 
 ## 1. Introduction & Purpose
 
@@ -20,8 +20,8 @@ mulle-dlmalloc is an adaptation of Doug Lea's malloc.c specifically configured w
 
 #### Mspace Creation & Destruction
 
-- `mspace_create(capacity)` → `mspace`: Creates new allocation space with given capacity
-- `mspace_destroy(mspace)` → `int`: Destroys mspace; returns 0 on success
+- `create_mspace(capacity, locked)` → `mspace`: Creates new allocation space with given capacity; second arg controls internal locking (often 0).
+- `destroy_mspace(mspace)` → `int`: Destroys mspace; returns 0 on success
 - `mspace_footprint(mspace)` → `size_t`: Returns current size allocated to mspace
 - `mspace_max_footprint(mspace)` → `size_t`: Returns maximum size ever allocated
 
@@ -75,19 +75,19 @@ mulle-dlmalloc is an adaptation of Doug Lea's malloc.c specifically configured w
 
 ```c
 // Pattern 1: Simple mspace usage
-mspace ms = mspace_create(10*1024*1024);
+mspace ms = create_mspace(10*1024*1024);
 void *p = mspace_malloc(ms, 1000);
 mspace_free(ms, p);
-mspace_destroy(ms);
+destroy_mspace(ms);
 
 // Pattern 2: Arena for temporary allocations
-mspace temp_arena = mspace_create(1024*1024);
+mspace temp_arena = create_mspace(1024*1024);
 // ... allocate and use
-mspace_destroy(temp_arena);  // Free everything at once
+destroy_mspace(temp_arena);  // Free everything at once
 
 // Pattern 3: Separate mspace per subsystem
-mspace graphics_heap = mspace_create(50*1024*1024);
-mspace network_heap = mspace_create(10*1024*1024);
+mspace graphics_heap = create_mspace(50*1024*1024);
+mspace network_heap = create_mspace(10*1024*1024);
 ```
 
 ## 6. Integration Examples
@@ -100,7 +100,7 @@ mspace network_heap = mspace_create(10*1024*1024);
 #include <string.h>
 
 int main() {
-    mspace ms = mspace_create(1024*1024);
+    mspace ms = create_mspace(1024*1024);
     if (!ms) {
         fprintf(stderr, "Failed to create mspace\n");
         return 1;
@@ -111,7 +111,7 @@ int main() {
     printf("%s\n", buf);
     
     mspace_free(ms, buf);
-    mspace_destroy(ms);
+    destroy_mspace(ms);
     return 0;
 }
 ```
@@ -122,8 +122,8 @@ int main() {
 #include <mulle-dlmalloc/mulle-dlmalloc.h>
 
 int main() {
-    mspace alloc1 = mspace_create(1024*1024);
-    mspace alloc2 = mspace_create(2*1024*1024);
+    mspace alloc1 = create_mspace(1024*1024);
+    mspace alloc2 = create_mspace(2*1024*1024);
     
     int *p1 = (int *)mspace_malloc(alloc1, sizeof(int) * 100);
     double *p2 = (double *)mspace_malloc(alloc2, sizeof(double) * 50);
@@ -134,8 +134,8 @@ int main() {
     mspace_free(alloc1, p1);
     mspace_free(alloc2, p2);
     
-    mspace_destroy(alloc1);
-    mspace_destroy(alloc2);
+    destroy_mspace(alloc1);
+    destroy_mspace(alloc2);
     return 0;
 }
 ```
@@ -147,7 +147,7 @@ int main() {
 #include <stdio.h>
 
 int main() {
-    mspace ms = mspace_create(512*1024);
+    mspace ms = create_mspace(512*1024);
     
     void *p = mspace_malloc(ms, 100);
     size_t usable = mspace_usable_size(p);
@@ -155,7 +155,7 @@ int main() {
     printf("Requested: 100, Usable: %zu\n", usable);
     
     mspace_free(ms, p);
-    mspace_destroy(ms);
+    destroy_mspace(ms);
     return 0;
 }
 ```
@@ -167,7 +167,7 @@ int main() {
 #include <string.h>
 
 int main() {
-    mspace ms = mspace_create(1024*1024);
+    mspace ms = create_mspace(1024*1024);
     
     int *arr = (int *)mspace_malloc(ms, 10 * sizeof(int));
     for (int i = 0; i < 10; i++)
@@ -179,7 +179,7 @@ int main() {
         arr[i] = i;
     
     mspace_free(ms, arr);
-    mspace_destroy(ms);
+    destroy_mspace(ms);
     return 0;
 }
 ```
@@ -191,7 +191,7 @@ int main() {
 #include <stdio.h>
 
 int main() {
-    mspace ms = mspace_create(1024*1024);
+    mspace ms = create_mspace(1024*1024);
     
     // Allocate and zero 100 integers
     int *arr = (int *)mspace_calloc(ms, 100, sizeof(int));
@@ -205,7 +205,7 @@ int main() {
     }
     
     mspace_free(ms, arr);
-    mspace_destroy(ms);
+    destroy_mspace(ms);
     return 0;
 }
 ```
@@ -216,7 +216,7 @@ int main() {
 #include <mulle-dlmalloc/mulle-dlmalloc.h>
 
 int main() {
-    mspace ms = mspace_create(10*1024*1024);
+    mspace ms = create_mspace(10*1024*1024);
     
     void *p = mspace_malloc(ms, 1024*1024);
     mspace_free(ms, p);
@@ -230,7 +230,7 @@ int main() {
         printf("Trimmed from %zu to %zu\n", before, after);
     }
     
-    mspace_destroy(ms);
+    destroy_mspace(ms);
     return 0;
 }
 ```
