@@ -6,7 +6,7 @@
       name="mulle-dlmalloc";
       user="mulle-core";
       repo="mulle-dlmalloc";
-      version="0.1.0";
+      version="0.1.1";
       homepage="https://github.com/mulle-core/mulle-dlmalloc";
       license="UNLICENSED"
    };
