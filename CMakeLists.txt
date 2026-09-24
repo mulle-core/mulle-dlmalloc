@@ -44,11 +44,7 @@ endif()
 include( Library)
 
 # use LIBRARY_COMPILE_TARGET for compiler options
-target_compile_definitions( "${LIBRARY_COMPILE_TARGET}" PUBLIC
-   NO_MALLINFO
-   ONLY_MSPACES
-   USE_LOCKS
-)
+target_compile_definitions( "${LIBRARY_COMPILE_TARGET}" PUBLIC)
 
 target_compile_options( "${LIBRARY_COMPILE_TARGET}" PUBLIC)
 if( NOT MSVC)
@@ -56,7 +52,10 @@ if( NOT MSVC)
 endif()
 
 # use LIBRARY_LINK_TARGET for linker options
-target_link_options( "${LIBRARY_LINK_TARGET}" PUBLIC)
+# the link target only exists during a LINK_PHASE build, not for `mulle-sde check`
+if( TARGET "${LIBRARY_LINK_TARGET}")
+   target_link_options( "${LIBRARY_LINK_TARGET}" PUBLIC)
+endif()
 
 include( InstallLibrary)
 

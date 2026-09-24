@@ -1,115 +1,177 @@
 # mulle-dlmalloc Library Documentation for AI
-<!-- Keywords: memory, allocator, dlmalloc, mspace, shared-memory -->
+<!-- Keywords: memory, allocator, dlmalloc, shared-memory, relocatable, offset -->
 
 ## 1. Introduction & Purpose
 
-- Single-file implementation of Doug Lea's dlmalloc adapted for shared-memory and mspace usage.
-- Solves general-purpose dynamic allocation with options for multiple independent allocation spaces (mspaces), mmap support, and tunable behavior via compile-time flags and mallopt.
-- Key features: standard malloc/free/realloc/calloc, memalign/posix_memalign, pvalloc/valloc, mallinfo/mallopt, malloc_trim and a full mspace API (create_mspace, mspace_malloc, mspace_free, etc.).
-- Relationship: component intended to be compiled into projects (no public headers shipped here); used by mulle-mmapallocator for shared-memory arenas.
+- Single-file allocator for one fixed-capacity, contiguous shared-memory arena.
+- All allocator metadata is stored as arena-relative offsets, never as
+  process-local virtual addresses, so the same arena can be mapped at a
+  different address in every attaching process.
+- Relationship: component intended to be compiled into projects (no public
+  headers shipped here); used by mulle-mmapallocator for shared-memory arenas.
+- The implementation is self-contained in `src/dlmalloc.c` and requires no
+  compile-time flags. The historic Doug Lea `dlmalloc`/`mspace` allocator is
+  gone.
 
 ## 2. Key Concepts & Design Philosophy
 
-- Monolithic, macro-heavy C implementation optimized for speed and space trade-offs.
-- MSPACES: independent allocator instances to isolate allocations (useful for shared arenas or per-thread allocators).
-- Uses MORECORE (sbrk) and/or MMAP for system memory management; behavior tunable via compile-time defines (ONLY_MSPACES, MSPACES, USE_LOCKS, FOOTERS, etc.).
-- Designed for robustness: checks detect many misuse cases; optional FOOTERS and PROCEED_ON_ERROR change safety/performance trade-offs.
+- **Offset identity.** A persistent reference is a `dlmalloc_offset_t`, the
+  arena-relative byte offset of user payload. Offset 0 means null/failure.
+- **Process-local view.** `dlmalloc_offset_view` holds this process's base
+  pointer and mapped length. It is never shared or persisted.
+- **No local addresses, at all.** No code path writes a process address into the
+  arena, so no translation pass exists. `dlmalloc_offset_resolve` turns an offset
+  into a local pointer that is valid only in the calling process while the object
+  is live.
+- **One fixed arena.** Caller supplies and maps the region. There is no growth,
+  no trimming to a system allocator, no multiple segments, and no allocation
+  outside the arena.
+- **Synchronization.** One process-shared spin lock in the arena header
+  serializes all operations. It has no owner tracking: a process that dies while
+  holding it wedges the arena, and an interrupted operation can leave metadata
+  inconsistent. There is no crash recovery; discard or reinitialize instead.
+- **Application data is not automatically relocatable.** The allocator cannot
+  make arbitrary pointer-bearing payloads portable. Shared structures must store
+  offsets (for example a `next` field) and resolve them locally on each access.
 
 ## 3. Core API & Data Structures
 
-This project exposes its API from src/dlmalloc.c. There are no packaged public header files in this repo; for explicit prototypes see the historic malloc-2.8.6.h or extract the prototypes from dlmalloc.c.
+This project exposes its API from `src/dlmalloc.c`. There are no packaged public
+header files in this repo; consumers include the source (it is an amalgamation).
 
-### 3.1. Global allocator (drop-in names / dl-prefixed aliases)
-- malloc(size_t) / dlmalloc: allocate memory
-- free(void*) / dlfree: free memory
-- realloc(void*, size_t) / dlrealloc: resize allocation
-- calloc(size_t, size_t) / dlcalloc: allocate and zero
-- memalign(size_t, size_t) / dlmemalign: aligned allocation
-- posix_memalign(void**, size_t, size_t) / dlposix_memalign: POSIX aligned allocation
-- valloc(size_t) / dlvalloc; pvalloc(size_t) / dlpvalloc: page-aligned helpers
-- malloc_trim(size_t) / dlmalloc_trim: return free top space to OS
-- malloc_usable_size(void*) / dlmalloc_usable_size: usable bytes of allocation
-- malloc_stats() / dlmalloc_stats and mallinfo() / dlmallinfo: allocator stats
-- mallopt(int,int) / dlmallopt: tune runtime parameters
-- malloc_set_footprint_limit(size_t) / dlmalloc_set_footprint_limit: cap footprint
+### 3.1. Types
 
-### 3.2. Mspace API (per-arena)
-- create_mspace(size_t capacity, int mode): create an mspace
-- create_mspace_with_base(void* base, size_t capacity, int mode): use provided base memory
-- mspace_malloc(mspace, size_t), mspace_free(mspace, void*), mspace_realloc(mspace, void*, size_t), mspace_calloc(mspace, n, size)
-- mspace_memalign(mspace, alignment, bytes), mspace_independent_calloc/comalloc, mspace_bulk_free
-- mspace_trim(mspace, size_t pad), mspace_malloc_stats(mspace), mspace_mallinfo(mspace)
-- mspace_footprint / mspace_max_footprint / mspace_set_footprint_limit
+- `typedef uint64_t dlmalloc_offset_t`: a persistent reference. Arena-relative
+  byte offset to user payload; 0 means null/failure.
+- `typedef struct dlmalloc_offset_view { void *base; size_t capacity; }`:
+  process-local attachment context holding this process's mapping and its length.
+  Never share this struct or its contents.
+
+### 3.2. Arena lifecycle
+
+- `int dlmalloc_offset_arena_init(void *base, size_t capacity)`: initialize the
+  arena once, in the creating process. `base` must be aligned to
+  `DLMALLOC_OFFSET_ALIGN` (16). Clears and rebuilds the region, so it may be
+  called again as a reset when the arena is quiescent and exclusively held.
+- `int dlmalloc_offset_arena_attach(dlmalloc_offset_view *view, void *base, size_t capacity)`:
+  attach any process at any address. Checks the versioned header and the
+  configuration word, then walks the arena once to confirm blocks tile the
+  region, every back offset matches the block before it, and the free lists
+  describe exactly the free blocks, each once.
+- `void dlmalloc_offset_arena_detach(dlmalloc_offset_view *view)`: discard
+  process-local state only. Destroys no shared metadata and no lock, so it is
+  safe while other processes remain attached.
+
+### 3.3. Allocation (offsets in, offsets out)
+
+- `dlmalloc_offset_t dlmalloc_offset_malloc(view, bytes)`
+- `dlmalloc_offset_t dlmalloc_offset_memalign(view, alignment, bytes)`
+  (power-of-two alignment up to 1 MiB; alignments above the natural one carve
+  the aligned payload out of a larger block and return the front part to the
+  free lists)
+- `dlmalloc_offset_t dlmalloc_offset_calloc(view, count, bytes)`
+- `dlmalloc_offset_t dlmalloc_offset_realloc(view, offset, bytes)`: offset 0
+  allocates; a 0 return means the request failed and the original offset is
+  still valid. If the payload had to move, the returned offset differs and the
+  caller must publish the new one.
+- `int dlmalloc_offset_free(view, offset)`
+
+### 3.4. Inspection
+
+- `void *dlmalloc_offset_resolve(view, offset)`: translate an offset to a
+  process-local pointer, or NULL when the offset is not a live allocation.
+- `size_t dlmalloc_offset_usable_size(view, offset)`: usable bytes of a live
+  allocation.
+
+Allocation identity is the offset, not the pointer. A `void *` returned by
+`dlmalloc_offset_resolve` is valid only in the calling process and only while the
+object is live; it must never be written into shared memory or sent to another
+process.
 
 ## 4. Performance Characteristics
 
-- Complexity: allocation/free are constant-time bounded by a factor of size_t bits (practical O(1)); mallinfo/malloc_stats may traverse heaps and cost O(n).
-- Small-object fast path via bins (low fragmentation); large requests use mmap (threshold tunable).
-- Memory overhead: per-chunk header (4/8 bytes plus alignment), per-mspace metadata; FOOTERS/DEBUG add overhead.
-- Threading: Not thread-safe by default. Enable USE_LOCKS or use separate mspaces per thread for concurrency.
+- Free lists are segregated into 32 power-of-two size classes with offsets as
+  links and a bitmap of non-empty classes. A request scans its own class for a
+  first fit; any block in a higher class is large enough by construction, so
+  allocation costs at most one list walk inside a single class.
+- `attach` costs one full pass over the arena (integrity walk); ordinary
+  allocation, free, realloc and resolve take the lock and are bounded by the
+  size-class structure.
+- Per-block overhead is a 16-byte header. Blocks tile the region exactly, so
+  coalescing needs only each block's `size` and `prev_size` (no footer, and an
+  in-use block is never written past the end of its payload).
 
 ## 5. AI Usage Recommendations & Patterns
 
 Best practices:
-- Use mspaces for isolated or shared-memory arenas (create_mspace + mspace_malloc/mspace_free).
-- Compile with ONLY_MSPACES if you only want explicit mspace API (no global malloc overrides).
-- Tune large-object behavior with mallopt(M_MMAP_THRESHOLD) and trimming with M_TRIM_THRESHOLD.
-- Always pair frees with the same mspace used for allocation; do not mix mspaces unless FOOTERS is enabled and understood.
+
+- Map the shared object, then `dlmalloc_offset_arena_init` once and
+  `dlmalloc_offset_arena_attach` per process.
+- Store `dlmalloc_offset_t` values in shared data; resolve locally and only for
+  the duration of an access.
+- Free by the same view and offset; do not pass a resolved pointer to another
+  process.
+- Treat the arena as writable by any attaching process: only share it between
+  processes that trust each other. Caller-supplied offsets are checked for
+  alignment, range and a live in-use block, but not proven to be real block
+  boundaries.
 
 Common pitfalls:
-- Relying on global dlmalloc in threaded apps without USE_LOCKS causes races.
-- Passing non-power-of-two alignments to memalign/posix_memalign.
 
-Idiomatic pattern: thread-local mspace (static __thread mspace ms = 0; if (!ms) ms = create_mspace(0,0); use mspace_malloc/mspace_free).
+- Persisting or exchanging resolved `void *` values (they are process-local).
+- Assuming growth or `realloc` in place: a move changes the offset.
+- Assuming crash recovery: a dead lock owner wedges the arena.
 
-## 6. Integration Examples
-
-### Example 1: Creating and populating an mspace
+## 6. Integration Example
 
 ```c
-#include <stdio.h>
+#include <sys/mman.h>
+#include <stdint.h>
+#include <string.h>
+
+#include "mulle-dlmalloc/src/dlmalloc.c"
 
 int main()
 {
-   mspace ms;
-   void* p;
+   dlmalloc_offset_view view = { 0, 0 };
+   dlmalloc_offset_t    root;
+   char                *text;
 
-   ms = create_mspace(0, 0);
-   p  = mspace_malloc(ms, 256);
-   if (p == NULL) return(1);
-   /* use p */
-   mspace_free(ms, p);
+   base = mmap(NULL, capacity, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+   if(base == MAP_FAILED)
+      return(1);
+
+   /* once, in the creating process */
+   if(! dlmalloc_offset_arena_init(base, capacity))
+      return(1);
+
+   /* in every process, at any address */
+   if(! dlmalloc_offset_arena_attach(&view, base, capacity))
+      return(1);
+
+   root = dlmalloc_offset_malloc(&view, 64);
+   text = dlmalloc_offset_resolve(&view, root);
+   strcpy(text, "alpha");
+
+   /* store `root` (the offset), never `text` (the pointer), in shared data */
    return(0);
-}
-```
-
-### Example 2: Using a custom allocator alias
-
-```c
-/* compile-time: -DONLY_MSPACES */
-static mspace mymspace = NULL;
-
-void* mymalloc(size_t bytes)
-{
-   if (mymspace == NULL) mymspace = create_mspace(0,0);
-   return mspace_malloc(mymspace, bytes);
-}
-
-void myfree(void* p)
-{
-   mspace_free(mymspace, p);
 }
 ```
 
 ## 7. Dependencies
 
-- No direct mulle-sde library dependencies (clib.json lists only src/dlmalloc.c).
+- No direct mulle-sde library dependencies (clib.json lists src/dlmalloc.c).
 - Commonly used by: mulle-mmapallocator for shared-memory arena management.
 
 ## 8. Shortcut / Notes for AI
 
-- Primary authoritative source: src/dlmalloc.c (exported symbols listed above). There are dl-prefixed aliases for many functions (dlmalloc/dlfree/etc.).
-- Use mspace API for explicit control; tune behavior with mallopt and compile-time flags (ONLY_MSPACES, MSPACES, USE_LOCKS, FOOTERS).
-- When generating code, prefer mspace-based allocation for shared or isolated heaps; avoid global dlmalloc in concurrent contexts unless locking is enabled.
+- Primary authoritative source: `src/dlmalloc.c` (all symbols are the
+  `dlmalloc_offset_*` family).
+- Use the offset API, not `void *` values, for anything that outlives the
+  current call or crosses a process boundary.
+- `DLMALLOC_OFFSET_ALIGN` is 16; the arena header starts at offset 0 and the
+  first block starts at an aligned offset after the header and bucket table.
+- `dlmalloc_offset_arena_init` doubles as a reset; it requires exclusive access
+  and discards all previous allocations.
 
 -- End of TOC.md

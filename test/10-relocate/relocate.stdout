@@ -1,0 +1,39 @@
+offset arena relocation
+  arena_init on a fresh mapping                            ok
+  attach the initializing base                             ok
+  second mapping lands at a different base                 ok
+  attach the relocated base                                ok
+  allocate through base A                                  ok
+  resolve matches base A                                   ok
+  base B sees the data written through base A              ok
+  allocate through base B                                  ok
+  usable_size through base B                               ok
+  usable_size of a base-B allocation seen from base A      ok
+  free a base-B allocation                                 ok
+  a freed offset no longer resolves                        ok
+  base A reuses the block freed through base B             ok
+  free the reused block                                    ok
+  memalign through base B                                  ok
+  base A resolves the memaligned block aligned             ok
+  usable_size of the memaligned block                      ok
+  free the memaligned block                                ok
+  realloc through base A                                   ok
+  the reallocated block is readable through base B         ok
+  free the reallocated block                               ok
+  free(0) is rejected                                      ok
+  free of an out-of-range offset is rejected               ok
+  resolve of a bogus offset fails                          ok
+  arena holds no local address after the single-base checks ok
+  6000 churn rounds, 66 slots still live at the end
+  two-view churn keeps every payload intact                ok
+  arena holds no local address after the churn             ok
+  the parent received the child mapping base               ok
+  the parent received the child allocation offset          ok
+  the child attached at a third base                       ok
+  the parent reads the child allocation through its own base ok
+  the parent frees the child allocation                    ok
+  the child freed the parent allocation                    ok
+  the child process exited cleanly                         ok
+  the parent observes the child's free                     ok
+  arena holds no local address after the cross-process work ok
+  36/36 checks passed

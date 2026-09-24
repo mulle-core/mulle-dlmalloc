@@ -1,7 +1,7 @@
 {
    project =
    {
-      description="Doug Lea's malloc.c extended for shared memory use.";
+      description="A relocatable allocator for one shared-memory arena.";
       domain="github";
       name="mulle-dlmalloc";
       user="mulle-core";
