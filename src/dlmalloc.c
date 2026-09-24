@@ -4032,6 +4032,7 @@ static void add_segment(mstate m, char* tbase, size_t tsize, flag_t mmapped) {
       break;
   }
   assert(nfences >= 2);
+  (void) nfences;  // squelch unused warning by genius compilers
 
   /* Insert the rest of old top into a bin as an ordinary free chunk */
   if (csp != old_top) {
