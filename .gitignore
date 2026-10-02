@@ -126,3 +126,10 @@ build-*/
 TODO.md
 REVIEW.md
 .freebuff
+.vscode/
+.touch
+*.orig
+*.workspace
+*.*-workspace
+research/
+*.old
