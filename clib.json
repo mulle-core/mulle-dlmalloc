@@ -8,5 +8,8 @@
    "src" : [
       "asset/dox/api/toc/index.md",
       "src/dlmalloc.c"
-   ]
+   ],
+   "dependencies" : {
+      "mulle-c/mulle-c11": "*"
+   }
 }

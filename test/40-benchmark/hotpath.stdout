@@ -1,0 +1,24 @@
+hot path benchmark
+  one segment
+  arena capacity                        1048576
+  segments                              1
+  malloc/free pairs                     200000
+  block size                            64
+  accesses that fell back to directory  0
+  fallbacks per pair                    0.00
+  allocation failures                   0
+  checks
+  the arena has a single segment                       ok
+  no operation failed                                  ok
+  no access falls back to the directory                ok
+  the arena is internally consistent                   ok
+  two segments
+  segments                              2
+  malloc/free pairs                     200000
+  block size                            64
+  allocation failures                   0
+  checks
+  the arena has two segments                           ok
+  no operation failed                                  ok
+  every access falls back to the directory             ok
+  the two-segment arena is internally consistent       ok

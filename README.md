@@ -2,23 +2,26 @@
 
 #### A relocatable allocator for one shared-memory arena.
 
+**mulle-dlmalloc** keeps all of its allocator metadata in the region as
+arena-relative offsets instead of process-local pointers, so the same arena can
+be mapped at a different virtual address in every process that attaches it.
+There is no trimming and no allocation outside the arena.
 
-# mulle-dlmalloc
-
-**mulle-dlmalloc** keeps all of its metadata in shared memory as arena-relative
-offsets instead of process-local pointers, so the same arena can be mapped at a
-different virtual address in every process that attaches it. It is one
-fixed-capacity, contiguous region: no growth, no trimming, no multiple segments,
-and no allocations outside the arena.
+An arena starts as one fixed segment and grows by adding segments through the
+embedder's callbacks. The backing store and the mappings are the embedder's job,
+so dlmalloc never opens a file or calls mmap itself; without callbacks the arena
+stays fixed. The API is offset based: `dlmalloc_offset_arena_init` /
+`dlmalloc_offset_arena_attach`, and `dlmalloc_offset_malloc` and friends return
+and accept `dlmalloc_offset_t` values. A pointer from
+`dlmalloc_offset_resolve` is valid only in the calling process while the object
+is live, so anything persistent must be an offset. The implementation is in
+`src/dlmalloc.c` and needs no compile-time flags. Its one dependency is
+[mulle-c11](//github.com/mulle-c/mulle-c11), for the size-class `floor(log2)`.
 
 mulle-dlmalloc is used by the [mulle-mmapallocator](//github.com/mulle-core/mulle-mmapallocator) to manage shared memory and separate memory arenas.
 
-The API is offset based: `dlmalloc_offset_arena_init` / `dlmalloc_offset_arena_attach`,
-`dlmalloc_offset_malloc` and friends return and accept `dlmalloc_offset_t` values.
-A pointer returned by `dlmalloc_offset_resolve` is valid only in the calling
-process while the object is live; persistent references stored in the arena must
-be offsets. The implementation is self-contained in `src/dlmalloc.c` and needs no
-compile-time flags.
+See [DESIGN.md](DESIGN.md) for the arena layout, the block format, the growth
+scheme and the embedder contract.
 
 
 
@@ -34,6 +37,7 @@ compile-time flags.
 ## Documentation & Guides
 
 * [API Summary](asset/dox/api/toc)
+* [Design](DESIGN.md)
 
 
 

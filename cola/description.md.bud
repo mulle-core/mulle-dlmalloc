@@ -5,9 +5,15 @@ A relocatable allocator for one shared-memory arena.
 
 **mulle-dlmalloc** keeps all of its metadata in shared memory as arena-relative
 offsets instead of process-local pointers, so the same arena can be mapped at a
-different virtual address in every process that attaches it. It is one
-fixed-capacity, contiguous region: no growth, no trimming, no multiple segments,
-and no allocations outside the arena.
+different virtual address in every process that attaches it. There is no
+trimming and no allocations outside the arena.
+
+An arena starts as one fixed segment. It can grow by adding segments through the
+embedder's callbacks: `dlmalloc_offset_arena_grow` adds a segment (each twice the
+previous size) and every attached process notices the new space from an epoch
+counter on its next call. The backing store and the actual mappings are the
+embedder's job — dlmalloc only stores offsets and the segment directory, and
+never opens files or calls mmap itself. Without callbacks the arena stays fixed.
 
 mulle-dlmalloc is used by the [mulle-mmapallocator](//github.com/mulle-core/mulle-mmapallocator) to manage shared memory and separate memory arenas.
 
@@ -16,6 +22,6 @@ The API is offset based: `dlmalloc_offset_arena_init` / `dlmalloc_offset_arena_a
 A pointer returned by `dlmalloc_offset_resolve` is valid only in the calling
 process while the object is live; persistent references stored in the arena must
 be offsets. The implementation is self-contained in `src/dlmalloc.c` and needs no
-compile-time flags.
+compile-time flags. See `GROWTH-SCHEME.md` for the growth design.
 
 

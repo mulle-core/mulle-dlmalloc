@@ -7,6 +7,16 @@
   Timings depend on the machine, so they are written to stderr and are not
   compared.
 
+  Every coordinate and length in the arena is a uintptr_t, so its layout is
+  width-relative and the byte counts -- and only those -- depend on the pointer
+  width. benchmark.stdout is the 64-bit golden, benchmark.stdout.linux.i686 the
+  32-bit one; the harness selects the second by MULLE_ARCH:
+
+     mulle-sde -DMULLE_ARCH=i686 -DCFLAGS=-m32 test run benchmark.c
+
+  Nothing else moves with the width: the counts, the integrity walk and the
+  local address scan are the same at either one.
+
   Like every consumer of this project, the test includes the implementation
   source rather than a header, because the project is an amalgamation and ships
   no public headers.
@@ -253,26 +263,81 @@ static uint64_t largest_remaining(uint64_t ceiling)
    return(best);
 }
 
-/* Any arena word matching base + k for k < capacity is a leaked local address. */
+/*
+  Any allocator word matching base + k for k < capacity is a leaked local
+  address: an arena that names one of its own addresses is not relocatable.
+
+  Only the allocator's own words are examined -- the fixed prefix (header,
+  bucket table, directory) and, in every block, size and prev_size, plus the two
+  list links a free block carries at its payload start.
+
+  Payload bytes are deliberately left out, and that is what makes this sound at
+  both widths. The workload writes arena-offset derived bytes into payloads (see
+  touch), and on ILP32 the arena is one 8 MiB window inside a 4 GiB address
+  space, so four payload bytes land inside that window by chance about once per
+  512 words. A scan that includes payloads cannot tell a leak from the test's
+  own data pattern, and it reported exactly that false positive before. Nothing
+  the allocator does is missed by excluding them: the only payload an allocator
+  writes is a free block's two links, which are covered below.
+*/
+static int scan_words(unsigned char *from, size_t bytes, uintptr_t base)
+{
+   uintptr_t value;
+   size_t    i;
+
+   for(i = 0; i + sizeof(uintptr_t) <= bytes; i += sizeof(uintptr_t))
+   {
+      memcpy(&value, from + i, sizeof(uintptr_t));
+      if(value - base < ARENA_CAPACITY && value != 0)
+      {
+         printf("  leaked local address at arena offset %#zx\n",
+                (size_t) (from + i - (unsigned char *) arena));
+         return(1);
+      }
+   }
+   return(0);
+}
+
 static size_t count_local_addresses(void)
 {
-   unsigned char *bytes;
-   size_t        i;
-   uintptr_t     value;
-   uintptr_t     base;
+   struct dlmalloc_offset_header  *header;
+   struct dlmalloc_offset_segment *directory;
+   struct dlmalloc_offset_block   *block;
+   unsigned char                  *bytes;
+   uintptr_t                       end;
+   uintptr_t                       index;
+   uintptr_t                       offset;
+   uintptr_t                       size;
+   uintptr_t                       base;
 
    base  = (uintptr_t)arena;
    bytes = (unsigned char *)arena;
-   i     = 0;
-   while(i + sizeof(uintptr_t) <= ARENA_CAPACITY)
+   header = dlmalloc_offset_header_for(&view);
+
+   /* header, bucket table and directory are one allocator-owned prefix run */
+   if(scan_words(bytes, (size_t) header->blocks_offset, base))
+      return(1);
+
+   directory = dlmalloc_offset_directory_for(&view);
+   for(index = 0; index < header->segment_count; ++index)
    {
-      memcpy(&value, bytes + i, sizeof(uintptr_t));
-      if(value - base < ARENA_CAPACITY && value != 0)
+      offset = directory[index].blocks_base;
+      end    = directory[index].offset_base + directory[index].size;
+      while(offset < end)
       {
-         printf("  leaked local address at arena offset %#zx\n", i);
-         return(1);
+         /* one mapping backs the whole arena, so an offset is an address here */
+         block = (struct dlmalloc_offset_block *)(bytes + offset);
+         size  = dlmalloc_offset_block_size(block);
+         if( ! size || size > end - offset)
+            break;
+         if(scan_words((unsigned char *) block, 2 * sizeof(uintptr_t), base))
+            return(1);
+         if( ! dlmalloc_offset_block_inuse(block))
+            if(scan_words((unsigned char *) block + DLMALLOC_OFFSET_BLOCK_SIZE,
+                          2 * sizeof(uintptr_t), base))
+               return(1);
+         offset += size;
       }
-      i += sizeof(uintptr_t);
    }
    return(0);
 }

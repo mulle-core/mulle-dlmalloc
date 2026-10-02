@@ -1,0 +1,20 @@
+offset arena growth
+  init the first segment                                   ok
+  attach the first segment                                 ok
+  the first segment fills up                               ok
+  the exhausted first segment refuses further allocations  ok
+  grow adds a segment                                      ok
+  allocation resumes after growth                          ok
+  the new allocation is in the grown segment               ok
+  the arena is still internally consistent                 ok
+  a second mapping of segment 0 lands elsewhere            ok
+  a second view attaches and maps every segment            ok
+  the second view resolves the grown segment               ok
+  the second view validates the arena                      ok
+  the parent grows again                                   ok
+  the parent received the child offset                     ok
+  the parent reads the child allocation in the newly grown segment ok
+  the child process exited cleanly                         ok
+  the arena survives the cross-process growth              ok
+  the arena is consistent after freeing everything         ok
+  18/18 checks passed

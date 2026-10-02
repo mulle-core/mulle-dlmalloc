@@ -25,3 +25,47 @@ else()
    set( MULLE_FALLBACK_LIBRARY_PREFIX "${CMAKE_SHARED_LIBRARY_PREFIX}")
    set( MULLE_FALLBACK_LIBRARY_SUFFIX "${CMAKE_SHARED_LIBRARY_SUFFIX}")
 endif()
+
+#
+# Generated from sourcetree: 16DC675C-620A-4B29-8EB0-65632A26891B;mulle-c11;no-all-load,no-cmake-inherit,no-import,no-link,no-recurse,no-singlephase;
+# Disable with : `mulle-sourcetree mark mulle-c11 no-header`
+# Disable for this platform: `mulle-sourcetree mark mulle-c11 no-cmake-platform-${MULLE_UNAME}`
+# Disable for a sdk: `mulle-sourcetree mark mulle-c11 no-cmake-sdk-<name>`
+#
+foreach( _TMP_MULLE__C11_HEADER_TARGET_TARGET mulle-c11)
+   if( TARGET ${_TMP_MULLE__C11_HEADER_TARGET_TARGET})
+      set( MULLE__C11_HEADER_TARGET ${_TMP_MULLE__C11_HEADER_TARGET_TARGET})
+      break()
+   endif()
+endforeach()
+if( MULLE__C11_HEADER_TARGET)
+   set( MULLE__C11_HEADER ${MULLE__C11_HEADER_TARGET})
+endif()
+
+if( NOT MULLE__C11_HEADER)
+   find_file( MULLE__C11_HEADER NAMES
+      mulle-c11.h mulle-c11/mulle-c11.h
+      NO_CMAKE_SYSTEM_PATH NO_SYSTEM_ENVIRONMENT_PATH NO_CMAKE_FIND_ROOT_PATH
+   )
+   if( NOT MULLE__C11_HEADER AND NOT DEPENDENCY_IGNORE_SYSTEM_HEADERS)
+      find_file( MULLE__C11_HEADER NAMES
+         mulle-c11.h mulle-c11/mulle-c11.h
+      )
+   endif()
+   message( STATUS "MULLE__C11_HEADER is ${MULLE__C11_HEADER}")
+endif()
+
+#
+# Add MULLE__C11_HEADER to HEADER_ONLY_LIBRARIES list.
+# Disable with: `mulle-sourcetree mark mulle-c11 no-cmake-add`
+#
+set( HEADER_ONLY_LIBRARIES
+   ${MULLE__C11_HEADER}
+   ${HEADER_ONLY_LIBRARIES}
+)
+if( MULLE__C11_HEADER)
+   # intentionally left blank
+else()
+   # Disable with: `mulle-sourcetree mark mulle-c11 no-require`
+   message( SEND_ERROR "MULLE__C11_HEADER was not found in mulle-c11.h mulle-c11/mulle-c11.h")
+endif()

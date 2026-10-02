@@ -1,0 +1,9 @@
+two-process arena growth
+  segment 0 is filled to exhaustion before the fork        ok
+  the parent resolves every item from both processes       ok
+  the child grew, verified and exited cleanly              ok
+  growth added one segment per call, at most               ok
+  and every segment added doubles the one before it        ok
+  the grown arena is internally consistent                 ok
+  the arena stays consistent after freeing everything      ok
+  7/7 checks passed

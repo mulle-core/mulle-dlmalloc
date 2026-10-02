@@ -292,7 +292,7 @@ static int child_process(int fd,
                          void *parent_base_a,
                          void *parent_base_b)
 {
-   dlmalloc_offset_view view = { 0, 0 };
+   dlmalloc_offset_view view = { 0 };
    dlmalloc_offset_t   offset;
    dlmalloc_offset_t   parent_offset;
    char                *text;
@@ -359,8 +359,8 @@ static int child_process(int fd,
 
 int main(void)
 {
-   dlmalloc_offset_view view_a = { 0, 0 };
-   dlmalloc_offset_view view_b = { 0, 0 };
+   dlmalloc_offset_view view_a = { 0 };
+   dlmalloc_offset_view view_b = { 0 };
    dlmalloc_offset_t   first;
    dlmalloc_offset_t   second;
    dlmalloc_offset_t   reused;

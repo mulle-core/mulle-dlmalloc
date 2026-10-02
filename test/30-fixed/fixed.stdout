@@ -1,0 +1,109 @@
+single-segment fast path
+  arena_init on a fixed arena                              ok
+  attach without growth callbacks                          ok
+  the fixed arena has a single segment                     ok
+  attach checks no segment                                 ok
+  attach does not build the view copy of segment 0         ok
+  every malloc resolves to base plus its offset            ok
+  the first allocation checks the segment it lands in      ok
+  segment 0 is answered from the view, not the directory   ok
+  the view copy of segment 0 matches the directory         ok
+  usable_size covers the request                           ok
+  memalign resolves to the alignment it promised           ok
+  calloc hands back zeroed memory                          ok
+  a block is allocated for realloc                         ok
+  realloc keeps the payload and resolves at its new offset ok
+  the arena is consistent after the churn                  ok
+  every block is freed                                     ok
+  the arena is consistent after freeing                    ok
+  a large request reuses the coalesced segment             ok
+  the view copy survives the whole run                     ok
+  arena_init with one small segment                        ok
+  attach the growable window                               ok
+  a second view attaches before the growth                 ok
+  it caches segment 0 at the length it was created with    ok
+  grow extends the segment                                 ok
+  the extension is in the offset space                     ok
+  the arena still has one segment                          ok
+  the view that grew it keeps its segment 0 copy in step   ok
+  the other view refreshes                                 ok
+  and takes the new length from the directory              ok
+  and drops the check bit for the segment that changed     ok
+  an allocation lands past the first segment               ok
+  the extension resolves in a view that did not grow it    ok
+  and the segment is checked again on the next allocation  ok
+  a view attached after the growth                         ok
+  has no segment 0 copy before its first allocation        ok
+  and takes the grown length from the directory            ok
+  the extended arena is consistent                         ok
+  arena_init with one small segment                        ok
+  attach the growable window                               ok
+  a fresh segment ends in one free block                   ok
+  an allocation takes the whole of it                      ok
+  so the segment ends in a live block                      ok
+  grow extends the segment past it                         ok
+  without adding a segment                                 ok
+  and the segment is bigger for it                         ok
+  the extension left the arena consistent                  ok
+  and it can be allocated from                             ok
+  which leaves the arena consistent too                    ok
+  arena_init with one small segment                        ok
+  attach the discontiguous arena                           ok
+  attach checks and describes nothing yet                  ok
+  a range that does not continue segment 0 is appended     ok
+  the arena now has two segments                           ok
+  a two-segment arena keeps no copy of segment 0           ok
+  the segment the grow laid out is checked, segment 0 is not ok
+  an allocation in segment 0 resolves                      ok
+  the segment an allocation lands in is checked            ok
+  the two-segment view never falls back to the copy        ok
+  a second allocation lands in the appended segment        ok
+  and the appended segment is checked when it is first used ok
+  the two-segment arena is consistent                      ok
+  a growable arena starts small, with window to spare      ok
+  attach the growable arena                                ok
+  an allocation that must use the broken segment fails     ok
+  the arena is marked corrupt, not out of space            ok
+  grow refuses, instead of adding a segment around it      ok
+  so the window is left alone                              ok
+  arena_init rebuilds the region                           ok
+  attaching again clears the corrupt mark                  ok
+  and the rebuilt arena grows again                        ok
+  arena_init with one small segment                        ok
+  a first process attaches                                 ok
+  a second process attaches                                ok
+  the request does not fit the first segment               ok
+  and the second process fails it the same way             ok
+  the first process grows the arena                        ok
+  which is one growth, of the segment the window already had ok
+  the second process, still seeing one segment, retries too ok
+  but adds nothing: the shortfall was already covered      ok
+  and its retry finds the segment the first process added  ok
+  the arena is consistent afterwards                       ok
+  arena_init for an arena that does not lock               ok
+  attach, and attaching does not take the lock either      ok
+  it allocates and frees without touching the lock word    ok
+  and the arena it filled is consistent                    ok
+  arena_init on a fresh region                             ok
+  adopt takes a region this process built                  ok
+  adopt leaves the built segment checked                   ok
+  and it allocates without checking it again               ok
+  verify agrees the arena is consistent                    ok
+  attach accepts it, because attach does not read the blocks ok
+  attach trusts no segment of it                           ok
+  allocating in the corrupt segment fails, it does not misbehave ok
+  verify rejects the corrupt arena                         ok
+  arena_init rebuilds it                                   ok
+  and it allocates again after the rebuild                 ok
+  arena_init for the refused offsets                       ok
+  attach for the refused offsets                           ok
+  freeing offset zero is refused                           ok
+  freeing a misaligned offset is refused                   ok
+  a live allocation to pit them against is made            ok
+  freeing zero while an allocation is live is refused      ok
+  and a misaligned view of a live allocation is too        ok
+  neither refusal touched the arena                        ok
+  the live allocation still frees normally                 ok
+  freeing the same offset twice is refused                 ok
+  the arena is consistent afterwards                       ok
+  107/107 checks passed

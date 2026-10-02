@@ -3,12 +3,12 @@ offset arena benchmark
   churn operations             120000
   live allocations             299
   requested bytes              261142
-  usable bytes                 263728
+  usable bytes                 263712
   internal overhead            1.01x
   allocation failures          0
   integrity walk               ok
   local addresses in arena     0
-  largest remaining allocation 8059840
+  largest remaining allocation 8062288
   checks
   no allocation failed         ok
   arena is internally consistent ok
