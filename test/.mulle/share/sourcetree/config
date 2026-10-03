@@ -1,1 +1,1 @@
-mulle-dlmalloc;${MULLE__DLMALLOC_NODETYPE:-tar};;D2114E72-3DF1-4A3E-843D-5E6E55CA4857;${MULLE__DLMALLOC_URL:-https://github.com/nat/mulle-dlmalloc/archive/${MULLE_TAG}.tar.gz};${MULLE__DLMALLOC_BRANCH};${MULLE__DLMALLOC_TAG:-latest};;
+mulle-dlmalloc;${MULLE__DLMALLOC_NODETYPE:-tar};;65074E30-924F-4D29-A048-DDB5B9658507;${MULLE__DLMALLOC_URL:-https://github.com/nat/mulle-dlmalloc/archive/${MULLE_TAG}.tar.gz};${MULLE__DLMALLOC_BRANCH};${MULLE__DLMALLOC_TAG:-latest};;

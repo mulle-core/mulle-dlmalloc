@@ -1,3 +1,18 @@
+## 0.3.0
+
+
+
+feature: add growable, segmented shared-memory arenas
+
+* arenas can now grow: ``dlmalloc_offset_arena_grow`` adds segments through embedder-supplied callbacks, each new segment twice the size of the previous
+* every attached process notices growth automatically via an epoch counter and maps new segments on its next operation `(`dlmalloc_offset_arena_refresh`` for explicit control)
+* new API: ``dlmalloc_offset_arena_adopt`` (attach to a just-built region), ``dlmalloc_offset_arena_verify`` (full on-demand check), ``dlmalloc_offset_arena_corrupted`,` ``dlmalloc_offset_arena_grow`,` ``dlmalloc_offset_arena_refresh``
+* a growth that continues the previous segment extends it in place instead of appending, so reserved-window arenas stay single-segment and keep the fast addressing path
+* **BREAKING**: ``dlmalloc_offset_t`` is now ``uintptr_t`,` making the on-arena format width-relative (format v5, incompatible with v2)
+* **BREAKING**: per-operation validation is now compiled in only for debug builds `(`DLMALLOC_OFFSET_CHECKED`,` defaulting from `NDEBUG`); a release build corrupts rather than fails on a stale or foreign offset
+* `nolocking` lets a private single-process arena skip the shared lock
+
+
 ## 0.2.0
 
 
