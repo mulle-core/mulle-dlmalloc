@@ -425,8 +425,7 @@ int main(void)
    check(leaks == 0, "arena holds no local address");
 
    /* The same arena at a second base, to show relocation still works here. */
-   other_view.base     = 0;
-   other_view.capacity = 0;
+   memset(&other_view, 0, sizeof(other_view));
    shared = mmap(NULL, ARENA_CAPACITY, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
    check(shared != MAP_FAILED && shared != arena,
          "second mapping at another base");

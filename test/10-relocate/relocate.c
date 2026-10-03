@@ -38,6 +38,9 @@
 #include <string.h>
 #include <unistd.h>
 
+#undef DLMALLOC_OFFSET_CHECKED
+#define DLMALLOC_OFFSET_CHECKED 1
+
 #include "../../src/dlmalloc.c"
 
 #define ARENA_CAPACITY   (1024 * 1024)
