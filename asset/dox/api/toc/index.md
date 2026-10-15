@@ -8,7 +8,7 @@
 - Relationship: component intended to be compiled into projects (no public
   headers shipped here); used by mulle-mmapallocator for shared-memory arenas.
 - Arena layout, the block format, growth and the embedder contract are in
-  `../../../DESIGN.md`. This file is the API reference.
+  `../../../GROWTH-SCHEME.md`. This file is the API reference.
 
 ## 2. Key Concepts & Design Philosophy
 
@@ -34,7 +34,7 @@
   view carries `grow_segment`, `map_segment` and `unmap_segment` callbacks; with
   no callbacks the arena is fixed and `grow` fails. The shipped embedder maps one
   reserved window up front and grows into it arithmetically; a file-backed
-  embedder is the variant for attaching by path. See `../../../DESIGN.md`.
+  embedder is the variant for attaching by path. See `../../../GROWTH-SCHEME.md`.
 - **Growth is noticed via an epoch.** Every operation takes the lock; `enter`
   compares the local epoch with the shared one and maps unseen segments before
   proceeding.
@@ -85,7 +85,7 @@ header files in this repo; consumers include the source (it is an amalgamation).
   `corrupted` state. The per-operation validation -- this check, the payload and
   free-list ones, and the header fields that do not guard memory -- is compiled
   in only for a debug build, for the reason and the cost in *Validation: on, off
-  and what it buys* in `DESIGN.md`.
+  and what it buys* in `GROWTH-SCHEME.md`.
 - `int dlmalloc_offset_arena_adopt(dlmalloc_offset_view *view, void *base, size_t capacity)`:
   attach to a region this process has just built, so the segments that exist now
   are taken as checked. Use it after `arena_init`; walking back a region you just
@@ -253,6 +253,6 @@ int main()
   checks each segment the first time that process uses it rather than reading the
   whole arena up front. `dlmalloc_offset_arena_verify` forces the whole check.
 - Growth is a format feature, not a policy: call `dlmalloc_offset_arena_grow`
-  and provide the callbacks. See `../../../DESIGN.md` for the full design.
+  and provide the callbacks. See `../../../GROWTH-SCHEME.md` for the full design.
 
 -- End of TOC.md

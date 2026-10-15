@@ -1,6 +1,9 @@
 ## 0.3.0
 
 
+* Reference `GROWTH-SCHEME.md` instead of `DESIGN.md` throughout the API table of contents
+
+
 
 feature: add growable, segmented shared-memory arenas
 
