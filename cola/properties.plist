@@ -3,11 +3,23 @@
    {
       description="A relocatable allocator for one shared-memory arena.";
       domain="github";
+      language="c";
+      dialect="c";
       name="mulle-dlmalloc";
       user="mulle-core";
       repo="mulle-dlmalloc";
-      version="0.3.0";
       homepage="https://github.com/mulle-core/mulle-dlmalloc";
-      license="UNLICENSED"
+      license="UNLICENSED";
    };
+   dependencies =
+   (
+      {
+         description="🔀 Cross-platform C compiler glue (and some cpp conveniences)";
+         domain="github";
+         name="mulle-c11";
+         repo="mulle-c11";
+         url="https://github.com/mulle-c/mulle-c11";
+         user="mulle-c";
+      }
+   );
 }

@@ -34,7 +34,7 @@ compile-time flags. See `GROWTH-SCHEME.md` for the growth design.
 
 | Release Version                                       | Release Notes  | AI Documentation
 |-------------------------------------------------------|----------------|---------------
-| ![Mulle kybernetiK tag](https://img.shields.io/github/tag/mulle-core/mulle-dlmalloc.svg) [![Build Status](https://github.com/mulle-core/mulle-dlmalloc/workflows/CI/badge.svg)](//github.com/mulle-core/mulle-dlmalloc/actions) | [RELEASENOTES](RELEASENOTES.md) | [DeepWiki for mulle-dlmalloc](https://deepwiki.com/mulle-core/mulle-dlmalloc)
+| ![Mulle kybernetiK tag](https://img.shields.io/github/tag/mulle-core/mulle-dlmalloc.svg) ![standard: C11](pix/c11.svg) ![apis: ansi](pix/apis-ansi.svg) [![Build Status](https://github.com/mulle-core/mulle-dlmalloc/workflows/CI/badge.svg)](//github.com/mulle-core/mulle-dlmalloc/actions) | [RELEASENOTES](RELEASENOTES.md) | [DeepWiki for mulle-dlmalloc](https://deepwiki.com/mulle-core/mulle-dlmalloc)
 
 
 
@@ -62,16 +62,21 @@ mulle-dlmalloc is a component of the [mulle-core](//github.com/mulle-core/mulle-
 #include <mulle-core/mulle-core.h>
 ```
 
-### Add mulle-core to a cmake and git project
+### Add mulle-core to a cmake project
 
-``` bash
-git submodule add https://github.com/mulle-core/mulle-core.git mulle-core
-```
-
-Add this to your `CMakeLists.txt`:
+Add mulle-core to your `CMakeLists.txt` with
+[FetchContent](https://cmake.org/cmake/help/latest/module/FetchContent.html):
 
 ``` cmake
-add_subdirectory( mulle-core)
+include( FetchContent)
+
+set( MULLE__CORE_TAG "master" CACHE STRING "branch or tag to fetch mulle-core from")
+
+FetchContent_Declare( MULLE__CORE
+   GIT_REPOSITORY https://github.com/mulle-core/mulle-core.git
+   GIT_TAG        "${MULLE__CORE_TAG}")
+FetchContent_MakeAvailable( MULLE__CORE)
+
 target_link_libraries( ${PROJECT_NAME} PRIVATE mulle-core)
 ```
 
@@ -93,15 +98,20 @@ and compile all the sources that were downloaded.
 
 ## Install
 
-Use [mulle-sde](//github.com/mulle-sde) to build and install mulle-dlmalloc:
+Use [mulle-sde](//github.com/mulle-sde) to build and install mulle-dlmalloc and all dependencies:
 
 ``` sh
 mulle-sde install --prefix /usr/local \
    https://github.com/mulle-core/mulle-dlmalloc/archive/latest.tar.gz
 ```
 
-### Legacy Installation
+### Manual Installation
 
+Install the requirements:
+
+| Requirements                                 | Description
+|----------------------------------------------|-----------------------
+| [mulle-c11](https://github.com/mulle-c/mulle-c11)             | 🔀 Cross-platform C compiler glue (and some cpp conveniences)
 
 Download the latest [tar](https://github.com/mulle-core/mulle-dlmalloc/archive/refs/tags/latest.tar.gz) or [zip](https://github.com/mulle-core/mulle-dlmalloc/archive/refs/tags/latest.zip) archive and unpack it.
 
